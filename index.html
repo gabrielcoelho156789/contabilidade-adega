@@ -40,10 +40,10 @@
             </div>
 
             <div class="flex items-center space-x-2 sm:space-x-3">
-                <div id="syncBadge" class="hidden sm:flex items-center gap-1.5 text-xs bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300">
+                <button type="button" onclick="showSyncDetails()" id="syncBadge" class="flex items-center gap-1.5 text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300 transition cursor-pointer" title="Clique para ver o status da nuvem">
                     <span id="syncDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
                     <span id="syncText">Conectando nuvem...</span>
-                </div>
+                </button>
 
                 <button type="button" onclick="loadSampleData()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5" title="Preencher com dados de exemplo">
                     <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
@@ -345,37 +345,38 @@
         let auth = null;
         let currentUser = null;
         let isCloudReady = false;
+        let lastSyncError = "Nenhuma chave configurada em DEFAULT_CLOUD_CONFIG.";
 
         // Categorias do comércio
         const CATEGORIES = {
             receita: [
-                "Vendas Balcão / Loja",
-                "Vendas Online / Delivery",
-                "Prestação de Serviços",
-                "Aporte de Capital",
-                "Outras Receitas"
+                'Vendas Balcão / Loja',
+                'Vendas Online / Delivery',
+                'Serviços Prestados',
+                'Aporte de Capital',
+                'Outras Receitas'
             ],
             gasto: [
-                "Mercadoria / Fornecedores",
-                "Aluguel e Condomínio",
-                "Água, Luz e Internet",
-                "Salários / Equipe",
-                "Impostos e Taxas",
-                "Marketing e Divulgação",
-                "Manutenção e Equipamentos",
-                "Outros Gastos"
+                'Mercadoria / Fornecedores',
+                'Aluguel e Condomínio',
+                'Água, Luz e Internet',
+                'Salários e Encargos',
+                'Impostos e Taxas (DAS/MEI)',
+                'Marketing e Divulgação',
+                'Manutenção e Equipamentos',
+                'Outros Gastos'
             ]
         };
 
-        // Estado em memória
         let transactions = [];
-        let chartInstance = null;
         let currentChartMode = 'bar';
+        let chartInstance = null;
         let transactionToDelete = null;
 
-        function updateSyncStatus(status, label) {
+        function updateSyncStatus(status, label, detail = "") {
             const dot = document.getElementById('syncDot');
             const text = document.getElementById('syncText');
+            if (detail) lastSyncError = detail;
             if (!dot || !text) return;
 
             text.textContent = label;
@@ -384,16 +385,31 @@
             } else if (status === 'connecting') {
                 dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
             } else {
-                dot.className = 'w-2 h-2 rounded-full bg-slate-400';
+                dot.className = 'w-2 h-2 rounded-full bg-rose-400';
             }
         }
 
+        window.showSyncDetails = function() {
+            if (isCloudReady) {
+                showToast('Nuvem conectada e sincronizando em tempo real!', 'success');
+            } else {
+                showToast(lastSyncError, 'error');
+            }
+        };
+
         // Inicializa autenticação e escuta em tempo real
         async function initCloudSync() {
-            if (!firebaseConfig || !firebaseConfig.apiKey) {
-                updateSyncStatus('offline', 'Modo Local (Configure nuvem)');
+            if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.projectId) {
+                updateSyncStatus('offline', 'Modo Local (Sem chaves)', 'Cole apiKey, authDomain e projectId em DEFAULT_CLOUD_CONFIG.');
                 return;
             }
+
+            // Garante que nunca fique preso em "Conectando..." por mais de 10 segundos
+            const connectionTimeout = setTimeout(() => {
+                if (!isCloudReady) {
+                    updateSyncStatus('offline', 'Tempo esgotado', 'Verifique sua internet ou se as chaves do Firebase estão corretas.');
+                }
+            }, 10000);
 
             try {
                 const app = initializeApp(firebaseConfig);
@@ -407,15 +423,20 @@
                 }
 
                 currentUser = auth.currentUser;
-                if (!currentUser) return;
-
-                isCloudReady = true;
-                updateSyncStatus('online', 'Nuvem Ativa');
+                if (!currentUser) {
+                    clearTimeout(connectionTimeout);
+                    updateSyncStatus('offline', 'Falha na autenticação', 'Não foi possível autenticar no Firebase.');
+                    return;
+                }
 
                 // Caminho público compartilhado do comércio para acesso entre dispositivos
                 const txCollection = collection(db, 'artifacts', appId, 'public', 'data', 'movimentacoes');
 
                 onSnapshot(txCollection, (snapshot) => {
+                    clearTimeout(connectionTimeout);
+                    isCloudReady = true;
+                    updateSyncStatus('online', 'Nuvem Ativa');
+
                     const cloudList = [];
                     snapshot.forEach((docSnap) => {
                         cloudList.push({ id: docSnap.id, ...docSnap.data() });
@@ -425,13 +446,18 @@
                     populateMonthFilter();
                     renderDashboard();
                 }, (error) => {
+                    clearTimeout(connectionTimeout);
                     console.error('Erro na sincronização:', error);
-                    updateSyncStatus('offline', 'Erro de conexão');
+                    updateSyncStatus('offline', 'Erro Firestore', 'Ative o Firestore em Modo de Teste no painel do Firebase.');
                 });
 
             } catch (err) {
+                clearTimeout(connectionTimeout);
                 console.error('Falha ao iniciar nuvem:', err);
-                updateSyncStatus('offline', 'Modo Local');
+                const msg = err?.code === 'auth/operation-not-allowed'
+                    ? 'Ative o login Anônimo em Segurança > Authentication no Firebase.'
+                    : 'Erro nas chaves do Firebase. Confira apiKey, authDomain e projectId.';
+                updateSyncStatus('offline', 'Erro de Configuração', msg);
             }
         }
 
