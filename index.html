@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SócioGestão - Controle Financeiro para Investidores</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        };
+    </script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- Cabeçalho -->
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-emerald-500 text-slate-950 p-2 rounded-xl font-bold shadow-sm">
+                    <i class="fa-solid fa-chart-line text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold tracking-tight leading-none">SócioGestão</h1>
+                    <span class="text-xs text-slate-400">Painel do Sócio Investidor</span>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <div id="syncBadge" class="hidden sm:flex items-center gap-1.5 text-xs bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300">
+                    <span id="syncDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="syncText">Conectando nuvem...</span>
+                </div>
+
+                <button type="button" onclick="loadSampleData()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5" title="Preencher com dados de exemplo">
+                    <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
+                    <span class="hidden md:inline">Exemplo</span>
+                </button>
+
+                <button type="button" onclick="openVercelModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-medium px-3.5 py-2 rounded-xl transition flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span>Publicar na Vercel</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+
+        <!-- Barra de Filtro de Período -->
+        <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-3">
+                <label for="monthFilter" class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <i class="fa-regular fa-calendar text-emerald-600"></i> Período:
+                </label>
+                <select id="monthFilter" onchange="renderDashboard()" class="bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                    <option value="all">Todo o Período</option>
+                </select>
+            </div>
+            <div class="text-xs text-slate-500 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span>Visão consolidada de Receitas, Gastos e Lucro Líquido</span>
+            </div>
+        </div>
+
+        <!-- Cards de Resumo -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+            <!-- Receita Bruta -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Receita Bruta</span>
+                    <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                        <i class="fa-solid fa-arrow-trend-up"></i>
+                    </div>
+                </div>
+                <div>
+                    <p id="totalRevenueEl" class="text-2xl font-bold text-slate-900">R$ 0,00</p>
+                    <p class="text-xs text-slate-400 mt-1">Total de entradas e vendas</p>
+                </div>
+            </div>
+
+            <!-- Gastos / Despesas -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Gastos / Despesas</span>
+                    <div class="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                        <i class="fa-solid fa-arrow-trend-down"></i>
+                    </div>
+                </div>
+                <div>
+                    <p id="totalExpenseEl" class="text-2xl font-bold text-rose-600">R$ 0,00</p>
+                    <p class="text-xs text-slate-400 mt-1">Total de custos e saídas</p>
+                </div>
+            </div>
+
+            <!-- Lucro Líquido -->
+            <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-5 rounded-2xl shadow-md flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-emerald-400">Lucro Líquido</span>
+                    <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                        <i class="fa-solid fa-scale-balanced"></i>
+                    </div>
+                </div>
+                <div>
+                    <p id="netProfitEl" class="text-2xl font-bold text-emerald-400">R$ 0,00</p>
+                    <p id="profitMarginEl" class="text-xs text-slate-300 mt-1">Margem líquida: 0%</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção de Lançamento + Gráfico -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Formulário (5 colunas) -->
+            <div class="lg:col-span-5 bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80 h-fit">
+                <h2 class="text-base sm:text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-plus text-emerald-600"></i> Novo Lançamento
+                </h2>
+
+                <form id="transactionForm" onsubmit="handleAddTransaction(event)" class="space-y-4">
+                    <!-- Tipo -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="type" value="receita" class="peer sr-only" checked onchange="updateCategoryOptions()">
+                            <div class="p-3 rounded-xl border-2 border-slate-200 text-center font-semibold text-sm text-slate-600 peer-checked:border-emerald-500 peer-checked:bg-emerald-50 peer-checked:text-emerald-700 transition">
+                                <i class="fa-solid fa-plus-circle mr-1"></i> Receita
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="type" value="gasto" class="peer sr-only" onchange="updateCategoryOptions()">
+                            <div class="p-3 rounded-xl border-2 border-slate-200 text-center font-semibold text-sm text-slate-600 peer-checked:border-rose-500 peer-checked:bg-rose-50 peer-checked:text-rose-700 transition">
+                                <i class="fa-solid fa-minus-circle mr-1"></i> Gasto
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Descrição -->
+                    <div>
+                        <label for="descInput" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Descrição</label>
+                        <input type="text" id="descInput" required placeholder="Ex: Faturamento do dia, Fornecedor, Aluguel..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                    </div>
+
+                    <!-- Valor e Data -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label for="amountInput" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Valor (R$)</label>
+                            <input type="number" id="amountInput" step="0.01" min="0.01" required placeholder="0,00" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                        </div>
+                        <div>
+                            <label for="dateInput" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Data</label>
+                            <input type="date" id="dateInput" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Categoria e Pagamento -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label for="categoryInput" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Categoria</label>
+                            <select id="categoryInput" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"></select>
+                        </div>
+                        <div>
+                            <label for="paymentInput" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Forma</label>
+                            <select id="paymentInput" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                                <option value="Pix">Pix</option>
+                                <option value="Dinheiro">Dinheiro</option>
+                                <option value="Cartão de Crédito">Cartão de Crédito</option>
+                                <option value="Cartão de Débito">Cartão de Débito</option>
+                                <option value="Boleto / Transferência">Boleto / Transferência</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-semibold py-3 px-4 rounded-xl shadow-sm transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-check"></i> Adicionar Lançamento
+                    </button>
+                </form>
+            </div>
+
+            <!-- Gráfico (7 colunas) -->
+            <div class="lg:col-span-7 bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col justify-between">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                    <div>
+                        <h2 class="text-base sm:text-lg font-bold text-slate-800">Análise Financeira</h2>
+                        <p class="text-xs text-slate-500">Resumo de resultados e distribuição de despesas</p>
+                    </div>
+                    <div class="flex bg-slate-100 p-1 rounded-xl self-start">
+                        <button type="button" onclick="switchChartMode('bar')" id="btnChartBar" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-slate-800 shadow-sm transition">Resumo</button>
+                        <button type="button" onclick="switchChartMode('doughnut')" id="btnChartDoughnut" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-800 transition">Gastos por Categoria</button>
+                    </div>
+                </div>
+
+                <div class="relative w-full h-64 sm:h-72 flex items-center justify-center">
+                    <canvas id="financeChart"></canvas>
+                    <div id="emptyChartMessage" class="text-center text-slate-400">
+                        <i class="fa-solid fa-chart-column text-3xl mb-2 opacity-50"></i>
+                        <p class="text-sm">Adicione receitas ou gastos para visualizar o gráfico.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabela de Movimentações -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+            <div class="p-5 sm:p-6 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-base sm:text-lg font-bold text-slate-800">Histórico de Movimentações</h2>
+                    <p class="text-xs text-slate-500">Registros lançados no período selecionado</p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="searchInput" oninput="renderDashboard()" placeholder="Buscar..." class="pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 outline-none">
+                    </div>
+
+                    <select id="typeFilter" onchange="renderDashboard()" class="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-xl px-3 py-2 outline-none">
+                        <option value="all">Todos</option>
+                        <option value="receita">Receitas</option>
+                        <option value="gasto">Gastos</option>
+                    </select>
+
+                    <button type="button" onclick="exportToCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-csv text-emerald-600"></i> Exportar CSV
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+                            <th class="py-3.5 px-4 sm:px-6 font-semibold">Data</th>
+                            <th class="py-3.5 px-4 font-semibold">Descrição</th>
+                            <th class="py-3.5 px-4 font-semibold hidden md:table-cell">Categoria</th>
+                            <th class="py-3.5 px-4 font-semibold hidden sm:table-cell">Forma</th>
+                            <th class="py-3.5 px-4 font-semibold text-right">Valor</th>
+                            <th class="py-3.5 px-4 sm:px-6 font-semibold text-center">Excluir</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactionsTableBody" class="divide-y divide-slate-100 text-sm"></tbody>
+                </table>
+            </div>
+
+            <div id="emptyListState" class="py-12 px-4 text-center">
+                <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                    <i class="fa-solid fa-receipt text-xl"></i>
+                </div>
+                <h3 class="text-sm font-semibold text-slate-700">Nenhum lançamento registrado</h3>
+                <p class="text-xs text-slate-500 mt-1">Preencha o formulário acima ou clique em "Exemplo" no topo para testar.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Notificações Toast -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Modal de Exclusão -->
+    <div id="deleteModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl">
+            <div class="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4">
+                <i class="fa-solid fa-trash-can text-lg"></i>
+            </div>
+            <h3 class="text-lg font-bold text-center text-slate-800">Excluir Lançamento?</h3>
+            <p class="text-sm text-center text-slate-500 mt-2">Esse registro será removido permanentemente do painel.</p>
+            <div class="grid grid-cols-2 gap-3 mt-6">
+                <button type="button" onclick="closeDeleteModal()" class="py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition">Cancelar</button>
+                <button type="button" onclick="confirmDelete()" class="py-2.5 px-4 rounded-xl bg-rose-600 text-white font-semibold text-sm hover:bg-rose-700 transition">Excluir</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Guia Vercel -->
+    <div id="vercelModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+                        <i class="fa-solid fa-cloud-arrow-up text-emerald-400"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-800">Publicar na Vercel (Acesso Online)</h3>
+                </div>
+                <button type="button" onclick="closeVercelModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4 text-sm text-slate-600">
+                <p>Este painel está pronto em um único arquivo HTML para você colocar no ar gratuitamente:</p>
+                
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <div>
+                        <p class="font-semibold text-slate-800">1. Salve o arquivo</p>
+                        <p class="text-xs mt-0.5">Crie uma pasta no seu computador e salve este código com o nome exato <code class="bg-slate-200 px-1.5 py-0.5 rounded text-slate-900 font-mono">index.html</code>.</p>
+                    </div>
+
+                    <div>
+                        <p class="font-semibold text-slate-800">2. Suba na Vercel</p>
+                        <p class="text-xs mt-0.5">Acesse <strong>vercel.com</strong>, entre com sua conta (GitHub, GitLab ou e-mail), clique em <em>Add New Project</em> e envie a pasta. Você receberá um link <code class="bg-slate-200 px-1.5 py-0.5 rounded text-slate-900 font-mono">.vercel.app</code> para acessar pelo celular ou computador.</p>
+                    </div>
+
+                    <div>
+                        <p class="font-semibold text-slate-800">3. Sincronização em Nuvem Ativada</p>
+                        <p class="text-xs mt-0.5">Seus lançamentos agora sincronizam automaticamente em tempo real! Para conectar sua própria conta gratuita na nuvem após subir na Vercel, basta substituir os dados de <code class="bg-slate-200 px-1.5 py-0.5 rounded text-slate-900 font-mono">DEFAULT_CLOUD_CONFIG</code> no início do script pelo seu projeto.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button type="button" onclick="closeVercelModal()" class="bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Principal com Sincronização em Nuvem -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configuração padrão para uso externo (substitua pelos dados do seu projeto ao publicar na Vercel)
+        const DEFAULT_CLOUD_CONFIG = {
+            apiKey: "AIzaSyD3i8L5z0WtnIjiWanLaKPxAT5iN7c3n0Y",
+            authDomain: "contabilidade-adega.firebaseapp.com
+",
+            projectId: "contabilidade-adega"
+        };
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'sociogestao-comercio';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : DEFAULT_CLOUD_CONFIG;
+
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+        let isCloudReady = false;
+
+        // Categorias do comércio
+        const CATEGORIES = {
+            receita: [
+                "Vendas Balcão / Loja",
+                "Vendas Online / Delivery",
+                "Prestação de Serviços",
+                "Aporte de Capital",
+                "Outras Receitas"
+            ],
+            gasto: [
+                "Mercadoria / Fornecedores",
+                "Aluguel e Condomínio",
+                "Água, Luz e Internet",
+                "Salários / Equipe",
+                "Impostos e Taxas",
+                "Marketing e Divulgação",
+                "Manutenção e Equipamentos",
+                "Outros Gastos"
+            ]
+        };
+
+        // Estado em memória
+        let transactions = [];
+        let chartInstance = null;
+        let currentChartMode = 'bar';
+        let transactionToDelete = null;
+
+        function updateSyncStatus(status, label) {
+            const dot = document.getElementById('syncDot');
+            const text = document.getElementById('syncText');
+            if (!dot || !text) return;
+
+            text.textContent = label;
+            if (status === 'online') {
+                dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+            } else if (status === 'connecting') {
+                dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+            } else {
+                dot.className = 'w-2 h-2 rounded-full bg-slate-400';
+            }
+        }
+
+        // Inicializa autenticação e escuta em tempo real
+        async function initCloudSync() {
+            if (!firebaseConfig || !firebaseConfig.apiKey) {
+                updateSyncStatus('offline', 'Modo Local (Configure nuvem)');
+                return;
+            }
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                currentUser = auth.currentUser;
+                if (!currentUser) return;
+
+                isCloudReady = true;
+                updateSyncStatus('online', 'Nuvem Ativa');
+
+                // Caminho público compartilhado do comércio para acesso entre dispositivos
+                const txCollection = collection(db, 'artifacts', appId, 'public', 'data', 'movimentacoes');
+
+                onSnapshot(txCollection, (snapshot) => {
+                    const cloudList = [];
+                    snapshot.forEach((docSnap) => {
+                        cloudList.push({ id: docSnap.id, ...docSnap.data() });
+                    });
+                    cloudList.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+                    transactions = cloudList;
+                    populateMonthFilter();
+                    renderDashboard();
+                }, (error) => {
+                    console.error('Erro na sincronização:', error);
+                    updateSyncStatus('offline', 'Erro de conexão');
+                });
+
+            } catch (err) {
+                console.error('Falha ao iniciar nuvem:', err);
+                updateSyncStatus('offline', 'Modo Local');
+            }
+        }
+
+        // Define a data de hoje no campo de data
+        function setDefaultDate() {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            document.getElementById('dateInput').value = `${yyyy}-${mm}-${dd}`;
+        }
+
+        // Atualiza opções de categoria conforme Receita ou Gasto
+        window.updateCategoryOptions = function() {
+            const checkedRadio = document.querySelector('input[name="type"]:checked');
+            const type = checkedRadio ? checkedRadio.value : 'receita';
+            const categorySelect = document.getElementById('categoryInput');
+            categorySelect.innerHTML = '';
+
+            CATEGORIES[type].forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                categorySelect.appendChild(option);
+            });
+        };
+
+        // Carrega dados de exemplo para visualização imediata
+        window.loadSampleData = async function() {
+            const today = new Date();
+            const ym = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
+            const samples = [
+                { type: 'receita', description: 'Faturamento Semana 1', amount: 8500.00, date: `${ym}-05`, category: 'Vendas Balcão / Loja', payment: 'Pix' },
+                { type: 'gasto', description: 'Reposição de Estoque', amount: 3200.00, date: `${ym}-06`, category: 'Mercadoria / Fornecedores', payment: 'Boleto / Transferência' },
+                { type: 'gasto', description: 'Aluguel do Ponto Comercial', amount: 1800.00, date: `${ym}-10`, category: 'Aluguel e Condomínio', payment: 'Pix' },
+                { type: 'receita', description: 'Pedidos Delivery / Online', amount: 4200.00, date: `${ym}-12`, category: 'Vendas Online / Delivery', payment: 'Cartão de Crédito' },
+                { type: 'gasto', description: 'Energia e Internet', amount: 450.00, date: `${ym}-15`, category: 'Água, Luz e Internet', payment: 'Pix' }
+            ];
+
+            if (isCloudReady && currentUser) {
+                try {
+                    const txCollection = collection(db, 'artifacts', appId, 'public', 'data', 'movimentacoes');
+                    for (const item of samples) {
+                        await addDoc(txCollection, { ...item, createdAt: Date.now() });
+                    }
+                    showToast('Exemplos salvos na nuvem!', 'success');
+                } catch (e) {
+                    showToast('Erro ao salvar exemplos na nuvem.', 'error');
+                }
+            } else {
+                transactions = samples.map((s, idx) => ({ id: 'sample_' + idx, ...s }));
+                populateMonthFilter();
+                renderDashboard();
+                showToast('Dados de exemplo carregados!', 'success');
+            }
+        };
+
+        // Adiciona novo lançamento
+        window.handleAddTransaction = async function(event) {
+            event.preventDefault();
+            try {
+                const type = document.querySelector('input[name="type"]:checked').value;
+                const description = document.getElementById('descInput').value.trim();
+                const amount = parseFloat(document.getElementById('amountInput').value);
+                const date = document.getElementById('dateInput').value;
+                const category = document.getElementById('categoryInput').value;
+                const payment = document.getElementById('paymentInput').value;
+
+                if (!description || isNaN(amount) || amount <= 0 || !date) {
+                    showToast('Preencha todos os campos corretamente.', 'error');
+                    return;
+                }
+
+                const payload = {
+                    type,
+                    description,
+                    amount,
+                    date,
+                    category,
+                    payment,
+                    createdAt: Date.now()
+                };
+
+                document.getElementById('descInput').value = '';
+                document.getElementById('amountInput').value = '';
+
+                if (isCloudReady && currentUser) {
+                    const txCollection = collection(db, 'artifacts', appId, 'public', 'data', 'movimentacoes');
+                    await addDoc(txCollection, payload);
+                    showToast(type === 'receita' ? 'Receita salva na nuvem!' : 'Gasto salvo na nuvem!', 'success');
+                } else {
+                    const newTx = {
+                        id: 'tx_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+                        ...payload
+                    };
+                    transactions.unshift(newTx);
+                    transactions.sort((a, b) => b.date.localeCompare(a.date));
+                    populateMonthFilter();
+                    renderDashboard();
+                    showToast(type === 'receita' ? 'Receita adicionada!' : 'Gasto adicionado!', 'success');
+                }
+            } catch (err) {
+                showToast('Não foi possível registrar o lançamento.', 'error');
+            }
+        };
+
+        // Atualiza opções do filtro de meses
+        function populateMonthFilter() {
+            const monthFilter = document.getElementById('monthFilter');
+            const currentVal = monthFilter.value;
+            const monthsSet = new Set();
+
+            transactions.forEach(tx => {
+                if (tx.date && tx.date.length >= 7) {
+                    monthsSet.add(tx.date.substring(0, 7));
+                }
+            });
+
+            const sortedMonths = Array.from(monthsSet).sort().reverse();
+            const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+            monthFilter.innerHTML = '<option value="all">Todo o Período</option>';
+            sortedMonths.forEach(ym => {
+                const [year, month] = ym.split('-');
+                const label = `${monthNames[parseInt(month, 10) - 1]}/${year}`;
+                const opt = document.createElement('option');
+                opt.value = ym;
+                opt.textContent = label;
+                monthFilter.appendChild(opt);
+            });
+
+            if (sortedMonths.includes(currentVal)) {
+                monthFilter.value = currentVal;
+            }
+        }
+
+        function formatCurrency(val) {
+            return Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+
+        function formatDateBR(dateStr) {
+            if (!dateStr) return '-';
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return dateStr;
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+
+        // Atualiza todo o painel
+        window.renderDashboard = function() {
+            const selectedMonth = document.getElementById('monthFilter').value;
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+            const selectedType = document.getElementById('typeFilter').value;
+
+            const periodTransactions = transactions.filter(tx => {
+                if (selectedMonth !== 'all' && (!tx.date || !tx.date.startsWith(selectedMonth))) {
+                    return false;
+                }
+                return true;
+            });
+
+            let totalRevenue = 0;
+            let totalExpense = 0;
+
+            periodTransactions.forEach(tx => {
+                if (tx.type === 'receita') {
+                    totalRevenue += Number(tx.amount) || 0;
+                } else {
+                    totalExpense += Number(tx.amount) || 0;
+                }
+            });
+
+            const netProfit = totalRevenue - totalExpense;
+            const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0.0';
+
+            document.getElementById('totalRevenueEl').textContent = formatCurrency(totalRevenue);
+            document.getElementById('totalExpenseEl').textContent = formatCurrency(totalExpense);
+
+            const netProfitEl = document.getElementById('netProfitEl');
+            netProfitEl.textContent = formatCurrency(netProfit);
+            netProfitEl.className = `text-2xl font-bold ${netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            document.getElementById('profitMarginEl').textContent = `Margem líquida: ${profitMargin}%`;
+
+            const filteredTableTx = periodTransactions.filter(tx => {
+                if (selectedType !== 'all' && tx.type !== selectedType) return false;
+                if (searchQuery) {
+                    const matchDesc = (tx.description || '').toLowerCase().includes(searchQuery);
+                    const matchCat = (tx.category || '').toLowerCase().includes(searchQuery);
+                    if (!matchDesc && !matchCat) return false;
+                }
+                return true;
+            });
+
+            renderTable(filteredTableTx);
+            renderChart(periodTransactions, totalRevenue, totalExpense, netProfit);
+        };
+
+        function renderTable(list) {
+            const tbody = document.getElementById('transactionsTableBody');
+            const emptyState = document.getElementById('emptyListState');
+            tbody.innerHTML = '';
+
+            if (list.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            list.forEach(tx => {
+                const isRevenue = tx.type === 'receita';
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50/80 transition';
+
+                tr.innerHTML = `
+                    <td class="py-3.5 px-4 sm:px-6 text-slate-600 whitespace-nowrap">${formatDateBR(tx.date)}</td>
+                    <td class="py-3.5 px-4 font-medium text-slate-800">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full ${isRevenue ? 'bg-emerald-500' : 'bg-rose-500'}"></span>
+                            <span>${escapeHTML(tx.description)}</span>
+                        </div>
+                        <span class="text-xs text-slate-400 md:hidden block mt-0.5">${escapeHTML(tx.category)}</span>
+                    </td>
+                    <td class="py-3.5 px-4 text-slate-600 hidden md:table-cell">
+                        <span class="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-700">${escapeHTML(tx.category)}</span>
+                    </td>
+                    <td class="py-3.5 px-4 text-slate-500 text-xs hidden sm:table-cell">${escapeHTML(tx.payment || '-')}</td>
+                    <td class="py-3.5 px-4 text-right font-semibold whitespace-nowrap ${isRevenue ? 'text-emerald-600' : 'text-rose-600'}">
+                        ${isRevenue ? '+' : '-'} ${formatCurrency(Number(tx.amount))}
+                    </td>
+                    <td class="py-3.5 px-4 sm:px-6 text-center">
+                        <button type="button" onclick="openDeleteModal('${tx.id}')" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition" title="Excluir registro">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.switchChartMode = function(mode) {
+            currentChartMode = mode;
+            const btnBar = document.getElementById('btnChartBar');
+            const btnDoughnut = document.getElementById('btnChartDoughnut');
+
+            if (mode === 'bar') {
+                btnBar.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-slate-800 shadow-sm transition';
+                btnDoughnut.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-800 transition';
+            } else {
+                btnDoughnut.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-slate-800 shadow-sm transition';
+                btnBar.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-800 transition';
+            }
+            renderDashboard();
+        };
+
+        function renderChart(periodTx, revenue, expense, profit) {
+            const canvas = document.getElementById('financeChart');
+            const emptyMsg = document.getElementById('emptyChartMessage');
+
+            if (typeof Chart === 'undefined') {
+                canvas.classList.add('hidden');
+                emptyMsg.classList.remove('hidden');
+                return;
+            }
+
+            if (periodTx.length === 0) {
+                canvas.classList.add('hidden');
+                emptyMsg.classList.remove('hidden');
+                if (chartInstance) {
+                    chartInstance.destroy();
+                    chartInstance = null;
+                }
+                return;
+            }
+
+            if (chartInstance) {
+                chartInstance.destroy();
+                chartInstance = null;
+            }
+
+            const ctx = canvas.getContext('2d');
+
+            if (currentChartMode === 'bar') {
+                canvas.classList.remove('hidden');
+                emptyMsg.classList.add('hidden');
+
+                chartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Receita Bruta', 'Gastos', 'Lucro Líquido'],
+                        datasets: [{
+                            label: 'Valor (R$)',
+                            data: [revenue, expense, profit],
+                            backgroundColor: [
+                                'rgba(16, 185, 129, 0.85)',
+                                'rgba(244, 63, 94, 0.85)',
+                                profit >= 0 ? 'rgba(15, 23, 42, 0.9)' : 'rgba(225, 29, 72, 0.9)'
+                            ],
+                            borderRadius: 8,
+                            maxBarThickness: 64
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => formatCurrency(context.parsed.y)
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: '#f1f5f9' },
+                                ticks: {
+                                    callback: (val) => 'R$ ' + val.toLocaleString('pt-BR')
+                                }
+                            },
+                            x: {
+                                grid: { display: false }
+                            }
+                        }
+                    }
+                });
+            } else {
+                const expenseByCat = {};
+                periodTx.filter(t => t.type === 'gasto').forEach(t => {
+                    expenseByCat[t.category] = (expenseByCat[t.category] || 0) + Number(t.amount);
+                });
+
+                const labels = Object.keys(expenseByCat);
+                const values = Object.values(expenseByCat);
+
+                if (labels.length === 0) {
+                    canvas.classList.add('hidden');
+                    emptyMsg.classList.remove('hidden');
+                    return;
+                }
+
+                canvas.classList.remove('hidden');
+                emptyMsg.classList.add('hidden');
+
+                chartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: [
+                                '#f43f5e', '#fb923c', '#facc15', '#38bdf8',
+                                '#818cf8', '#a855f7', '#ec4899', '#64748b'
+                            ],
+                            borderWidth: 2,
+                            borderColor: '#ffffff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '62%',
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: { boxWidth: 12, font: { size: 11 } }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => ` ${context.label}: ${formatCurrency(context.parsed)}`
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        window.exportToCSV = function() {
+            if (transactions.length === 0) {
+                showToast('Não há dados para exportar.', 'error');
+                return;
+            }
+
+            const headers = ['Data', 'Tipo', 'Descricao', 'Categoria', 'Forma', 'Valor'];
+            const rows = transactions.map(tx => [
+                formatDateBR(tx.date),
+                tx.type === 'receita' ? 'Receita' : 'Gasto',
+                `"${(tx.description || '').replace(/"/g, '""')}"`,
+                `"${(tx.category || '').replace(/"/g, '""')}"`,
+                `"${(tx.payment || '').replace(/"/g, '""')}"`,
+                Number(tx.amount).toFixed(2).replace('.', ',')
+            ]);
+
+            const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `financeiro_comercio_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            showToast('Planilha CSV exportada!', 'success');
+        };
+
+        window.openDeleteModal = function(id) {
+            transactionToDelete = id;
+            const modal = document.getElementById('deleteModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+
+        window.closeDeleteModal = function() {
+            transactionToDelete = null;
+            const modal = document.getElementById('deleteModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        };
+
+        window.confirmDelete = async function() {
+            if (!transactionToDelete) return;
+            const id = transactionToDelete;
+            closeDeleteModal();
+
+            if (isCloudReady && currentUser) {
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'movimentacoes', id);
+                    await deleteDoc(docRef);
+                    showToast('Lançamento excluído da nuvem.', 'success');
+                } catch (e) {
+                    showToast('Erro ao excluir da nuvem.', 'error');
+                }
+            } else {
+                transactions = transactions.filter(t => t.id !== id);
+                populateMonthFilter();
+                renderDashboard();
+                showToast('Lançamento excluído.', 'success');
+            }
+        };
+
+        window.openVercelModal = function() {
+            const modal = document.getElementById('vercelModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+
+        window.closeVercelModal = function() {
+            const modal = document.getElementById('vercelModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        };
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-slate-900 border-emerald-500' : 'bg-rose-900 border-rose-500';
+            const icon = type === 'success' ? 'fa-circle-check text-emerald-400' : 'fa-circle-exclamation text-rose-400';
+
+            toast.className = `${bgColor} text-white text-xs sm:text-sm px-4 py-3 rounded-xl shadow-lg border-l-4 flex items-center gap-2.5 transition-all duration-300 opacity-0 translate-y-2`;
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i><span>${escapeHTML(message)}</span>`;
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('opacity-0', 'translate-y-2');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function escapeHTML(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        // Inicialização
+        setDefaultDate();
+        updateCategoryOptions();
+        renderDashboard();
+        initCloudSync();
+    </script>
+</body>
+</html>
