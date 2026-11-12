@@ -314,7 +314,7 @@
 
                     <div>
                         <p class="font-semibold text-slate-800">3. Sincronização em Nuvem Ativada</p>
-                        <p class="text-xs mt-0.5">Seus lançamentos agora sincronizam automaticamente em tempo real! Para conectar sua própria conta gratuita na nuvem após subir na Vercel, basta substituir os dados de <code class="bg-slate-200 px-1.5 py-0.5 rounded text-slate-900 font-mono">DEFAULT_CLOUD_CONFIG</code> no início do script pelo seu projeto.</p>
+                        <p class="text-xs mt-0.5">Seus lançamentos agora sincronizam automaticamente em tempo real com o projeto <code class="bg-slate-200 px-1.5 py-0.5 rounded text-slate-900 font-mono">contabilidade-adega</code>.</p>
                     </div>
                 </div>
             </div>
@@ -329,9 +329,9 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeFirestore, collection, addDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configuração padrão para uso externo (substitua pelos dados do seu projeto ao publicar na Vercel)
+        // Configuração do projeto Firebase (Contabilidade Adega)
         const DEFAULT_CLOUD_CONFIG = {
             apiKey: "AIzaSyD3i8L5z0WtnIjiWanLaKPxAT5iN7c3n0Y",
             authDomain: "contabilidade-adega.firebaseapp.com",
@@ -345,7 +345,7 @@
         let auth = null;
         let currentUser = null;
         let isCloudReady = false;
-        let lastSyncError = "Nenhuma chave configurada em DEFAULT_CLOUD_CONFIG.";
+        let lastSyncError = "Conectando ao banco de dados...";
 
         // Categorias do comércio
         const CATEGORIES = {
@@ -404,17 +404,21 @@
                 return;
             }
 
-            // Garante que nunca fique preso em "Conectando..." por mais de 10 segundos
+            let step = "autenticação";
             const connectionTimeout = setTimeout(() => {
                 if (!isCloudReady) {
-                    updateSyncStatus('offline', 'Tempo esgotado', 'Verifique sua internet ou se as chaves do Firebase estão corretas.');
+                    const detailMsg = step === "firestore"
+                        ? "Banco Firestore não respondeu. Verifique se você clicou em 'Criar banco de dados' no Firestore Database do Firebase."
+                        : "Tempo esgotado na autenticação. Verifique sua internet ou se o login Anônimo está ativado.";
+                    updateSyncStatus('offline', 'Tempo esgotado', detailMsg);
                 }
-            }, 10000);
+            }, 15000);
 
             try {
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
-                db = getFirestore(app);
+                // experimentalForceLongPolling evita bloqueios de rede/firewall no Brasil
+                db = initializeFirestore(app, { experimentalForceLongPolling: true });
 
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
@@ -428,6 +432,9 @@
                     updateSyncStatus('offline', 'Falha na autenticação', 'Não foi possível autenticar no Firebase.');
                     return;
                 }
+
+                step = "firestore";
+                updateSyncStatus('connecting', 'Abrindo banco...', 'Autenticado! Conectando ao Firestore Database...');
 
                 // Caminho público compartilhado do comércio para acesso entre dispositivos
                 const txCollection = collection(db, 'artifacts', appId, 'public', 'data', 'movimentacoes');
@@ -448,7 +455,10 @@
                 }, (error) => {
                     clearTimeout(connectionTimeout);
                     console.error('Erro na sincronização:', error);
-                    updateSyncStatus('offline', 'Erro Firestore', 'Ative o Firestore em Modo de Teste no painel do Firebase.');
+                    const errDetail = error?.code === 'permission-denied'
+                        ? 'Permissão negada! No Firebase, vá em Firestore Database > Regras e libere read, write.'
+                        : 'Erro no Firestore (' + (error?.code || 'desconhecido') + '). Verifique se o banco foi criado.';
+                    updateSyncStatus('offline', 'Erro Firestore', errDetail);
                 });
 
             } catch (err) {
@@ -456,7 +466,9 @@
                 console.error('Falha ao iniciar nuvem:', err);
                 const msg = err?.code === 'auth/operation-not-allowed'
                     ? 'Ative o login Anônimo em Segurança > Authentication no Firebase.'
-                    : 'Erro nas chaves do Firebase. Confira apiKey, authDomain e projectId.';
+                    : err?.code === 'auth/unauthorized-domain'
+                    ? 'Adicione o domínio da Vercel em Authentication > Configurações > Domínios autorizados.'
+                    : 'Erro de conexão (' + (err?.code || 'verifique o Firebase') + ').';
                 updateSyncStatus('offline', 'Erro de Configuração', msg);
             }
         }
@@ -512,7 +524,7 @@
                 transactions = samples.map((s, idx) => ({ id: 'sample_' + idx, ...s }));
                 populateMonthFilter();
                 renderDashboard();
-                showToast('Dados de exemplo carregados!', 'success');
+                showToast('Dados de exemplo carregados (Modo Local)!', 'success');
             }
         };
 
@@ -929,7 +941,7 @@
             setTimeout(() => {
                 toast.classList.add('opacity-0', 'translate-y-2');
                 setTimeout(() => toast.remove(), 300);
-            }, 3000);
+            }, 4500);
         }
 
         function escapeHTML(str) {
